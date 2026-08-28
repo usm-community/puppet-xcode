@@ -120,6 +120,39 @@ Two details worth knowing if you modify this module:
   both: a `creates` on `clang` would veto the stamp and stale tools would never
   be replaced. The two conditions are ORed inside a single shell test instead.
 
+### Fleets where the tools are an enrolment prerequisite
+
+Installing the Puppet agent on macOS generally requires the Command Line Tools
+first, so on such a fleet they are already present — and current — the very
+first time Puppet runs. Reinstalling them on that run is pure waste:
+
+```puppet
+class { 'xcode':
+  manage_command_line_tools         => true,
+  command_line_tools_adopt_existing => true,
+}
+```
+
+With adoption enabled, a missing stamp on a host that already carries the tools
+is read as "installed for this OS" rather than "never checked". The reference is
+still recorded on that same run, so a later macOS update is detected normally:
+
+| Host state | default | with adoption |
+|---|---|---|
+| Tools missing | installs | installs |
+| Tools present, no stamp yet (first run) | reinstalls once | **adopts, no install** |
+| Tools present, stamp current | skips | skips |
+| Tools present, stamp from an older OS build | reinstalls | reinstalls |
+
+It is a declaration of trust, not a check. On a host whose tools were in fact
+already stale when Puppet first ran, the fix is deferred to the next macOS
+update. That is why it is off by default: nothing can be assumed about a host
+whose provisioning history is unknown.
+
+Note that the stamp cannot be seeded from your own `site.pp` instead —
+`xcode::command_line_tools` already declares that `file` resource, and Puppet
+refuses a duplicate declaration.
+
 ## Reference
 
 See [REFERENCE.md](REFERENCE.md), generated with `puppet-strings`.
@@ -161,16 +194,8 @@ string rather than as `undef`; manifests consuming this fact must match
   compared against the running OS. As a consequence, the first Puppet run on a
   host that has no stamp yet reinstalls the tools once, even if they were
   already current — there is no way to tell "current" from "stale" without a
-  previous reference. On hosts you know to be up to date, that one-off install
-  can be skipped by seeding the stamp before the first Puppet run:
-
-  ```bash
-  sudo sh -c 'sw_vers -buildVersion > /var/db/puppet_xcode_clt_state'
-  ```
-
-  Note that this asserts the installed tools match the running OS; it does not
-  check it. On a host whose tools were in fact stale, this silences the
-  reinstall until the next macOS update.
+  previous reference. Set `command_line_tools_adopt_existing` to skip it — see
+  below.
 
 ## Development
 

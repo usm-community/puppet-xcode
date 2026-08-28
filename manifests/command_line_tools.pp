@@ -17,6 +17,18 @@ class xcode::command_line_tools {
     source => 'puppet:///modules/xcode/install_command_line_tools.sh',
   }
 
+  # With adoption enabled, a missing stamp on a host that already carries the
+  # tools is read as "they were installed for this OS" rather than as "they
+  # have never been checked". That suits fleets where the tools are a
+  # prerequisite of enrolling the Puppet agent: they are current the first time
+  # Puppet runs, so reinstalling them would be pure waste. File[$stamp] below is
+  # declared unconditionally, so the reference is recorded on that same first
+  # run and later OS updates are still detected normally.
+  $stamp_test = $xcode::command_line_tools_adopt_existing ? {
+    true    => "{ grep -qxF '${os_build}' '${stamp}' 2>/dev/null || ! test -e '${stamp}'; }",
+    default => "grep -qxF '${os_build}' '${stamp}' 2>/dev/null",
+  }
+
   # `xcode-select --install` cannot be used here: it opens a GUI dialog and
   # would never complete under an unattended Puppet run.
   #
@@ -33,7 +45,7 @@ class xcode::command_line_tools {
   # update never invalidates them.
   exec { 'xcode_install_command_line_tools':
     command   => $script,
-    unless    => "test -x '${clang}' && grep -qxF '${os_build}' '${stamp}'",
+    unless    => "test -x '${clang}' && ${stamp_test}",
     provider  => shell,
     path      => ['/usr/bin', '/bin', '/usr/sbin', '/sbin'],
     logoutput => 'on_failure',

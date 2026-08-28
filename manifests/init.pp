@@ -20,6 +20,15 @@
 #   Whether to run `xcodebuild -runFirstLaunch` after a macOS or Xcode update.
 # @param manage_command_line_tools
 #   Whether to install the Xcode Command Line Tools when they are missing.
+# @param command_line_tools_adopt_existing
+#   On the first run, when Command Line Tools are already present but no stamp
+#   exists yet, record the current OS build instead of reinstalling them.
+#   Set this on fleets where the tools are a prerequisite of enrolling the
+#   Puppet agent, so they are known to be current the first time Puppet runs.
+#   It is a declaration of trust, not a check: on a host whose tools were in
+#   fact already stale, the reinstall is deferred to the next macOS update.
+#   Defaults to false, which reinstalls once and is the safer assumption when
+#   nothing is known about how the host was provisioned.
 # @param manage_developer_dir
 #   Whether to point `xcode-select` at the managed Xcode bundle when it currently
 #   points elsewhere, for instance at the Command Line Tools.
@@ -54,6 +63,7 @@ class xcode (
   Boolean $manage_license                        = true,
   Boolean $manage_first_launch                   = true,
   Boolean $manage_command_line_tools             = false,
+  Boolean $command_line_tools_adopt_existing     = false,
   Boolean $manage_developer_dir                  = false,
   Optional[Stdlib::Absolutepath] $app_path       = undef,
   Stdlib::Absolutepath $state_stamp              = '/var/db/puppet_xcode_state',

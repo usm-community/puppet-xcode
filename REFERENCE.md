@@ -57,6 +57,7 @@ The following parameters are available in the `xcode` class:
 * [`manage_license`](#-xcode--manage_license)
 * [`manage_first_launch`](#-xcode--manage_first_launch)
 * [`manage_command_line_tools`](#-xcode--manage_command_line_tools)
+* [`command_line_tools_adopt_existing`](#-xcode--command_line_tools_adopt_existing)
 * [`manage_developer_dir`](#-xcode--manage_developer_dir)
 * [`app_path`](#-xcode--app_path)
 * [`state_stamp`](#-xcode--state_stamp)
@@ -87,6 +88,21 @@ Default value: `true`
 Data type: `Boolean`
 
 Whether to install the Xcode Command Line Tools when they are missing.
+
+Default value: `false`
+
+##### <a name="-xcode--command_line_tools_adopt_existing"></a>`command_line_tools_adopt_existing`
+
+Data type: `Boolean`
+
+On the first run, when Command Line Tools are already present but no stamp
+exists yet, record the current OS build instead of reinstalling them.
+Set this on fleets where the tools are a prerequisite of enrolling the
+Puppet agent, so they are known to be current the first time Puppet runs.
+It is a declaration of trust, not a check: on a host whose tools were in
+fact already stale, the reinstall is deferred to the next macOS update.
+Defaults to false, which reinstalls once and is the safer assumption when
+nothing is known about how the host was provisioned.
 
 Default value: `false`
 

@@ -188,10 +188,38 @@ describe 'xcode' do
     it 'reinstalls when the tools are missing or when the OS build moved on' do
       is_expected.to contain_exec('xcode_install_command_line_tools')
         .with_unless("test -x '/Library/Developer/CommandLineTools/usr/bin/clang' " \
-                     "&& grep -qxF '25G83' '#{clt_stamp}'")
+                     "&& grep -qxF '25G83' '#{clt_stamp}' 2>/dev/null")
         .with_provider('shell')
         .with_timeout(1800)
       is_expected.to contain_exec('xcode_install_command_line_tools').without_creates
+    end
+
+    it 'does not adopt pre-existing tools by default, so an unknown host is reinstalled once' do
+      is_expected.to contain_exec('xcode_install_command_line_tools')
+        .with_unless("test -x '/Library/Developer/CommandLineTools/usr/bin/clang' " \
+                     "&& grep -qxF '25G83' '#{clt_stamp}' 2>/dev/null")
+    end
+
+    context 'with command_line_tools_adopt_existing' do
+      let(:params) { super().merge(command_line_tools_adopt_existing: true) }
+
+      it { is_expected.to compile.with_all_deps }
+
+      # Skip only when the tools are present AND (the stamp matches OR there is
+      # no stamp yet). Missing tools, or a stamp from an older OS build, still
+      # trigger the install.
+      it 'treats a missing stamp on an equipped host as already current' do
+        is_expected.to contain_exec('xcode_install_command_line_tools')
+          .with_unless("test -x '/Library/Developer/CommandLineTools/usr/bin/clang' " \
+                       "&& { grep -qxF '25G83' '#{clt_stamp}' 2>/dev/null " \
+                       "|| ! test -e '#{clt_stamp}'; }")
+      end
+
+      it 'still records the reference on that first run, so later updates are caught' do
+        is_expected.to contain_file(clt_stamp)
+          .with_content("25G83\n")
+          .that_requires('Exec[xcode_install_command_line_tools]')
+      end
     end
 
     it 'keys the stamp on the OS build only, the tools being independent of Xcode.app' do
