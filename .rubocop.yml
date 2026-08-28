@@ -1,0 +1,9 @@
+---
+inherit_gem:
+  voxpupuli-test: rubocop.yml
+
+# The class specs describe one class across many host states, so the fixture
+# (the `xcode` fact, the derived stamp, the xcodebuild path) is naturally
+# expressed as a handful of overridable `let` blocks.
+RSpec/MultipleMemoizedHelpers:
+  Max: 8

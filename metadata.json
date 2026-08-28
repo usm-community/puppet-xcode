@@ -1,0 +1,35 @@
+{
+  "name": "puppet-xcode",
+  "version": "0.1.0",
+  "author": "Nicolas Rogier",
+  "license": "Apache-2.0",
+  "summary": "Detect Xcode on macOS and accept its licence after an OS or Xcode update",
+  "source": "https://github.com/usm-community/puppet-xcode",
+  "project_page": "https://github.com/usm-community/puppet-xcode",
+  "issues_url": "https://github.com/usm-community/puppet-xcode/issues",
+  "dependencies": [
+    {
+      "name": "puppetlabs/stdlib",
+      "version_requirement": ">= 9.0.0 < 11.0.0"
+    }
+  ],
+  "requirements": [
+    {
+      "name": "openvox",
+      "version_requirement": ">= 7.0.0 < 9.0.0"
+    }
+  ],
+  "operatingsystem_support": [
+    {
+      "operatingsystem": "Darwin"
+    }
+  ],
+  "tags": [
+    "xcode",
+    "macos",
+    "darwin",
+    "license",
+    "developer-tools"
+  ],
+  "pdk-version": "3.4.0"
+}

@@ -1,0 +1,12 @@
+# Default value of the `xcode` structured fact for class specs.
+# Individual examples override it through `let(:facts)`.
+---
+xcode:
+    developer_dir: "/Applications/Xcode.app/Contents/Developer"
+    type: "xcode"
+    installed: true
+    app_path: "/Applications/Xcode.app"
+    version: "16.2"
+    build: "16C5032a"
+    license_accepted: true
+    command_line_tools: true
