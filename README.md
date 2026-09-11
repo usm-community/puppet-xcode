@@ -44,10 +44,9 @@ would otherwise break hosts carrying several Xcode versions.
 * Accepts the Xcode licence, which writes to
   `/Library/Preferences/com.apple.dt.Xcode.plist`.
 * Runs the Xcode first-launch component install, which installs packages.
-* Writes a state stamp, `/var/db/puppet_xcode_state` by default, plus
-  `/var/db/puppet_xcode_clt_state` when the Command Line Tools are managed.
-* Optionally runs `xcode-select -s` and installs the Command Line Tools
-  through `softwareupdate`.
+* Writes a state stamp, `/var/db/puppet_xcode_state` by default.
+* Optionally runs `xcode-select -s`, and installs or updates the Command Line
+  Tools through `softwareupdate`.
 
 ### Setup requirements
 
@@ -101,12 +100,27 @@ changing replays `xcodebuild -runFirstLaunch`. Keying the stamp on the OS build
 alone would miss "Xcode updated, macOS unchanged" — which is exactly when the
 newly bundled components need installing.
 
-**The Command Line Tools**, when managed, follow a stamp of their own, keyed on
-the macOS build alone. A macOS update sometimes deletes
-`/Library/Developer/CommandLineTools` outright, and sometimes leaves it in place
-while its SDKs stay those of the previous OS — the second case is silent, and
-only the stamp catches it. They are keyed on the OS alone because the standalone
-tools are independent of `Xcode.app`: an Xcode update never invalidates them.
+**The Command Line Tools**, when managed, keep no state file. Their trigger is a
+direct question to `softwareupdate`: install when the tools are missing, or when
+an update is on offer.
+
+```
+! test -x <clang> || softwareupdate -l --no-scan | grep -q 'Command Line Tools'
+```
+
+Inferring this from the macOS build instead does not work, and the module got it
+wrong at first. Apple ships Command Line Tools updates on their own cadence:
+"Command Line Tools for Xcode 27.0" lands on a host whose macOS build has not
+moved at all, so a stamp keyed on the OS build reports "nothing to do" and the
+update is silently skipped. Asking what is actually on offer covers that, along
+with the tools being absent and a macOS upgrade having removed them.
+
+`--no-scan` reuses the macOS update daemon's own periodic scan — roughly a
+second, against several for a round trip to Apple on every agent run. Set
+`command_line_tools_full_scan` for hosts that are rarely up, or where automatic
+checks are disabled, so that cache cannot be relied upon. The install script
+refreshes the catalogue afterwards, so a cached scan never re-offers a package
+that was just installed.
 
 Two details worth knowing if you modify this module:
 
@@ -116,42 +130,6 @@ Two details worth knowing if you modify this module:
 * The Xcode version is read from the bundle's `version.plist`, not from
   `xcodebuild -version`. That command fails precisely while the licence is
   unaccepted, which is the moment the version is needed.
-* Puppet ANDs `creates` with `unless`, so the Command Line Tools exec cannot use
-  both: a `creates` on `clang` would veto the stamp and stale tools would never
-  be replaced. The two conditions are ORed inside a single shell test instead.
-
-### Fleets where the tools are an enrolment prerequisite
-
-Installing the Puppet agent on macOS generally requires the Command Line Tools
-first, so on such a fleet they are already present — and current — the very
-first time Puppet runs. Reinstalling them on that run is pure waste:
-
-```puppet
-class { 'xcode':
-  manage_command_line_tools         => true,
-  command_line_tools_adopt_existing => true,
-}
-```
-
-With adoption enabled, a missing stamp on a host that already carries the tools
-is read as "installed for this OS" rather than "never checked". The reference is
-still recorded on that same run, so a later macOS update is detected normally:
-
-| Host state | default | with adoption |
-|---|---|---|
-| Tools missing | installs | installs |
-| Tools present, no stamp yet (first run) | reinstalls once | **adopts, no install** |
-| Tools present, stamp current | skips | skips |
-| Tools present, stamp from an older OS build | reinstalls | reinstalls |
-
-It is a declaration of trust, not a check. On a host whose tools were in fact
-already stale when Puppet first ran, the fix is deferred to the next macOS
-update. That is why it is off by default: nothing can be assumed about a host
-whose provisioning history is unknown.
-
-Note that the stamp cannot be seeded from your own `site.pp` instead —
-`xcode::command_line_tools` already declares that `file` resource, and Puppet
-refuses a duplicate declaration.
 
 ## Reference
 
@@ -187,15 +165,10 @@ string rather than as `undef`; manifests consuming this fact must match
 * Requires root.
 * Rosetta 2 is out of scope. It is unrelated to licence handling, and Apple has
   announced its progressive removal after macOS 27.
-* The parent directories of `state_stamp` and `command_line_tools_stamp` must
-  already exist. The default, `/var/db`, always does.
-* Command Line Tools staleness is inferred from the macOS build, not from the
-  installed package version: `pkgutil` receipts carry no value that can be
-  compared against the running OS. As a consequence, the first Puppet run on a
-  host that has no stamp yet reinstalls the tools once, even if they were
-  already current — there is no way to tell "current" from "stale" without a
-  previous reference. Set `command_line_tools_adopt_existing` to skip it — see
-  below.
+* The parent directory of `state_stamp` must already exist. The default,
+  `/var/db`, always does.
+* Command Line Tools updates are detected through `softwareupdate`, so a host
+  that cannot reach Apple's update servers will not see them.
 
 ## Development
 
@@ -236,13 +209,11 @@ sudo puppet apply … -e 'include xcode'   # must still replay -runFirstLaunch
 sudo puppet apply … -e 'include xcode'   # idempotent
 ```
 
-Simulate a macOS update that left stale Command Line Tools behind, rather than
-removing them — the case a `creates` guard alone would let through:
+Check the Command Line Tools trigger against what Apple is actually offering:
 
 ```bash
-echo "FAUXBUILD" | sudo tee /var/db/puppet_xcode_clt_state
+softwareupdate -l | grep 'Command Line Tools'   # is an update on offer?
 sudo puppet apply … -e "class { 'xcode': manage_command_line_tools => true }"
-# must reinstall even though /Library/Developer/CommandLineTools still exists
 ```
 
 Licence scenario:

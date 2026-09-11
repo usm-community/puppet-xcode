@@ -20,15 +20,12 @@
 #   Whether to run `xcodebuild -runFirstLaunch` after a macOS or Xcode update.
 # @param manage_command_line_tools
 #   Whether to install the Xcode Command Line Tools when they are missing.
-# @param command_line_tools_adopt_existing
-#   On the first run, when Command Line Tools are already present but no stamp
-#   exists yet, record the current OS build instead of reinstalling them.
-#   Set this on fleets where the tools are a prerequisite of enrolling the
-#   Puppet agent, so they are known to be current the first time Puppet runs.
-#   It is a declaration of trust, not a check: on a host whose tools were in
-#   fact already stale, the reinstall is deferred to the next macOS update.
-#   Defaults to false, which reinstalls once and is the safer assumption when
-#   nothing is known about how the host was provisioned.
+# @param command_line_tools_full_scan
+#   Whether to make `softwareupdate` contact Apple on every run instead of
+#   reusing the result of the macOS update daemon's own periodic scan. The
+#   cached form costs about a second rather than several, which is why it is
+#   the default; turn this on for hosts that are rarely up, or where automatic
+#   update checks are disabled, so the cache cannot be relied upon.
 # @param manage_developer_dir
 #   Whether to point `xcode-select` at the managed Xcode bundle when it currently
 #   points elsewhere, for instance at the Command Line Tools.
@@ -37,10 +34,6 @@
 # @param state_stamp
 #   File recording the OS build and Xcode version the components were last
 #   provisioned for. Its parent directory must already exist.
-# @param command_line_tools_stamp
-#   File recording the OS build the Command Line Tools were last installed for,
-#   so that a macOS update reinstalls the matching version even when it leaves
-#   the previous tools in place. Its parent directory must already exist.
 # @param fail_if_absent
 #   Fail the catalog when Xcode is not installed, instead of skipping quietly.
 # @param license_timeout
@@ -63,11 +56,10 @@ class xcode (
   Boolean $manage_license                        = true,
   Boolean $manage_first_launch                   = true,
   Boolean $manage_command_line_tools             = false,
-  Boolean $command_line_tools_adopt_existing     = false,
+  Boolean $command_line_tools_full_scan          = false,
   Boolean $manage_developer_dir                  = false,
   Optional[Stdlib::Absolutepath] $app_path       = undef,
   Stdlib::Absolutepath $state_stamp              = '/var/db/puppet_xcode_state',
-  Stdlib::Absolutepath $command_line_tools_stamp = '/var/db/puppet_xcode_clt_state',
   Boolean $fail_if_absent                        = false,
   Integer[0] $license_timeout                    = 600,
   Integer[0] $first_launch_timeout               = 1800,

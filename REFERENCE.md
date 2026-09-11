@@ -12,7 +12,7 @@
 
 #### Private Classes
 
-* `xcode::command_line_tools`: Install the Xcode Command Line Tools without user interaction.
+* `xcode::command_line_tools`: Install or update the Xcode Command Line Tools without user interaction.
 * `xcode::license`: Accept the Xcode licence and replay the first-launch component install.
 
 ## Classes
@@ -57,11 +57,10 @@ The following parameters are available in the `xcode` class:
 * [`manage_license`](#-xcode--manage_license)
 * [`manage_first_launch`](#-xcode--manage_first_launch)
 * [`manage_command_line_tools`](#-xcode--manage_command_line_tools)
-* [`command_line_tools_adopt_existing`](#-xcode--command_line_tools_adopt_existing)
+* [`command_line_tools_full_scan`](#-xcode--command_line_tools_full_scan)
 * [`manage_developer_dir`](#-xcode--manage_developer_dir)
 * [`app_path`](#-xcode--app_path)
 * [`state_stamp`](#-xcode--state_stamp)
-* [`command_line_tools_stamp`](#-xcode--command_line_tools_stamp)
 * [`fail_if_absent`](#-xcode--fail_if_absent)
 * [`license_timeout`](#-xcode--license_timeout)
 * [`first_launch_timeout`](#-xcode--first_launch_timeout)
@@ -91,18 +90,15 @@ Whether to install the Xcode Command Line Tools when they are missing.
 
 Default value: `false`
 
-##### <a name="-xcode--command_line_tools_adopt_existing"></a>`command_line_tools_adopt_existing`
+##### <a name="-xcode--command_line_tools_full_scan"></a>`command_line_tools_full_scan`
 
 Data type: `Boolean`
 
-On the first run, when Command Line Tools are already present but no stamp
-exists yet, record the current OS build instead of reinstalling them.
-Set this on fleets where the tools are a prerequisite of enrolling the
-Puppet agent, so they are known to be current the first time Puppet runs.
-It is a declaration of trust, not a check: on a host whose tools were in
-fact already stale, the reinstall is deferred to the next macOS update.
-Defaults to false, which reinstalls once and is the safer assumption when
-nothing is known about how the host was provisioned.
+Whether to make `softwareupdate` contact Apple on every run instead of
+reusing the result of the macOS update daemon's own periodic scan. The
+cached form costs about a second rather than several, which is why it is
+the default; turn this on for hosts that are rarely up, or where automatic
+update checks are disabled, so the cache cannot be relied upon.
 
 Default value: `false`
 
@@ -131,16 +127,6 @@ File recording the OS build and Xcode version the components were last
 provisioned for. Its parent directory must already exist.
 
 Default value: `'/var/db/puppet_xcode_state'`
-
-##### <a name="-xcode--command_line_tools_stamp"></a>`command_line_tools_stamp`
-
-Data type: `Stdlib::Absolutepath`
-
-File recording the OS build the Command Line Tools were last installed for,
-so that a macOS update reinstalls the matching version even when it leaves
-the previous tools in place. Its parent directory must already exist.
-
-Default value: `'/var/db/puppet_xcode_clt_state'`
 
 ##### <a name="-xcode--fail_if_absent"></a>`fail_if_absent`
 

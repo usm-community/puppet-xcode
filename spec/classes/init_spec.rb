@@ -178,57 +178,24 @@ describe 'xcode' do
 
   context 'with manage_command_line_tools' do
     let(:params) { { manage_command_line_tools: true } }
-    let(:clt_stamp) { '/var/db/puppet_xcode_clt_state' }
+    let(:clang) { '/Library/Developer/CommandLineTools/usr/bin/clang' }
 
     it { is_expected.to compile.with_all_deps }
 
-    # Puppet ANDs `creates` with `unless`, so keeping `creates` here would veto
-    # the stamp and stale tools would never be replaced. The two conditions are
-    # ORed inside one shell test instead.
-    it 'reinstalls when the tools are missing or when the OS build moved on' do
+    # Apple ships Command Line Tools updates independently of macOS releases,
+    # so the trigger has to be "softwareupdate offers one", not "the OS build
+    # changed" -- the latter silently misses them. The first clause covers the
+    # tools being absent, which an update check alone would not report.
+    it 'asks softwareupdate what is on offer instead of inferring it from the OS build' do
       is_expected.to contain_exec('xcode_install_command_line_tools')
-        .with_unless("test -x '/Library/Developer/CommandLineTools/usr/bin/clang' " \
-                     "&& grep -qxF '25G83' '#{clt_stamp}' 2>/dev/null")
+        .with_onlyif("! test -x '#{clang}' || /usr/sbin/softwareupdate -l --no-scan " \
+                     "2>/dev/null | grep -q 'Command Line Tools'")
         .with_provider('shell')
         .with_timeout(1800)
-      is_expected.to contain_exec('xcode_install_command_line_tools').without_creates
     end
 
-    it 'does not adopt pre-existing tools by default, so an unknown host is reinstalled once' do
-      is_expected.to contain_exec('xcode_install_command_line_tools')
-        .with_unless("test -x '/Library/Developer/CommandLineTools/usr/bin/clang' " \
-                     "&& grep -qxF '25G83' '#{clt_stamp}' 2>/dev/null")
-    end
-
-    context 'with command_line_tools_adopt_existing' do
-      let(:params) { super().merge(command_line_tools_adopt_existing: true) }
-
-      it { is_expected.to compile.with_all_deps }
-
-      # Skip only when the tools are present AND (the stamp matches OR there is
-      # no stamp yet). Missing tools, or a stamp from an older OS build, still
-      # trigger the install.
-      it 'treats a missing stamp on an equipped host as already current' do
-        is_expected.to contain_exec('xcode_install_command_line_tools')
-          .with_unless("test -x '/Library/Developer/CommandLineTools/usr/bin/clang' " \
-                       "&& { grep -qxF '25G83' '#{clt_stamp}' 2>/dev/null " \
-                       "|| ! test -e '#{clt_stamp}'; }")
-      end
-
-      it 'still records the reference on that first run, so later updates are caught' do
-        is_expected.to contain_file(clt_stamp)
-          .with_content("25G83\n")
-          .that_requires('Exec[xcode_install_command_line_tools]')
-      end
-    end
-
-    it 'keys the stamp on the OS build only, the tools being independent of Xcode.app' do
-      is_expected.to contain_file(clt_stamp).with_content("25G83\n")
-    end
-
-    it 'records the stamp only after a successful install' do
-      is_expected.to contain_file(clt_stamp)
-        .that_requires('Exec[xcode_install_command_line_tools]')
+    it 'keeps no state file of its own, the real state being directly observable' do
+      is_expected.not_to contain_file('/var/db/puppet_xcode_clt_state')
     end
 
     it { is_expected.to contain_file('/var/tmp/puppet_xcode_install_command_line_tools.sh').with_mode('0700') }
@@ -238,11 +205,13 @@ describe 'xcode' do
         .that_comes_before('Class[xcode::license]')
     end
 
-    context 'when Xcode itself is updated but the OS is not' do
-      let(:xcode_fact) { super().merge('version' => '16.3', 'build' => '16E140') }
+    context 'with command_line_tools_full_scan' do
+      let(:params) { super().merge(command_line_tools_full_scan: true) }
 
-      it 'leaves the Command Line Tools stamp untouched' do
-        is_expected.to contain_file(clt_stamp).with_content("25G83\n")
+      it 'drops --no-scan so softwareupdate contacts Apple on every run' do
+        is_expected.to contain_exec('xcode_install_command_line_tools')
+          .with_onlyif("! test -x '#{clang}' || /usr/sbin/softwareupdate -l " \
+                       "2>/dev/null | grep -q 'Command Line Tools'")
       end
     end
   end

@@ -31,3 +31,8 @@ fi
 
 echo "Installing Command Line Tools: ${label}"
 /usr/sbin/softwareupdate -i "${label}" --verbose
+
+# Refresh the update catalogue. Puppet's check may run with --no-scan, and the
+# cached scan still lists the package we just installed; without this refresh
+# the next agent run would see a stale offer and reinstall on every pass.
+/usr/sbin/softwareupdate -l >/dev/null 2>&1 || true
