@@ -1,6 +1,6 @@
 {
   "name": "puppet-xcode",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Nicolas Rogier",
   "license": "Apache-2.0",
   "summary": "Detect Xcode on macOS and keep its licence and components in sync after updates",

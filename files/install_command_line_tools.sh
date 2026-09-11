@@ -32,7 +32,12 @@ fi
 echo "Installing Command Line Tools: ${label}"
 /usr/sbin/softwareupdate -i "${label}" --verbose
 
-# Refresh the update catalogue. Puppet's check may run with --no-scan, and the
-# cached scan still lists the package we just installed; without this refresh
-# the next agent run would see a stale offer and reinstall on every pass.
+# Drop the sentinel *before* refreshing. While it is in place softwareupdate
+# advertises the entire install-on-demand catalogue, so refreshing under it
+# would cache every Command Line Tools version Apple publishes and leave the
+# next run convinced an update is pending.
+cleanup
+
+# Refresh the catalogue so a later --no-scan check sees the post-install state
+# rather than the offer we have just satisfied.
 /usr/sbin/softwareupdate -l >/dev/null 2>&1 || true

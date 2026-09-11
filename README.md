@@ -100,27 +100,29 @@ changing replays `xcodebuild -runFirstLaunch`. Keying the stamp on the OS build
 alone would miss "Xcode updated, macOS unchanged" — which is exactly when the
 newly bundled components need installing.
 
-**The Command Line Tools**, when managed, keep no state file. Their trigger is a
-direct question to `softwareupdate`: install when the tools are missing, or when
-an update is on offer.
+**The Command Line Tools**, when managed, keep no state file. Their trigger is
+`files/check_command_line_tools.sh`, which compares the installed package
+version against the newest one `softwareupdate` offers, and installs when the
+tools are missing or genuinely out of date.
 
-```
-! test -x <clang> || softwareupdate -l --no-scan | grep -q 'Command Line Tools'
-```
+The version comparison is the whole point. Asking merely whether softwareupdate
+lists "Command Line Tools" does not work, and the module got this wrong twice:
 
-Inferring this from the macOS build instead does not work, and the module got it
-wrong at first. Apple ships Command Line Tools updates on their own cadence:
-"Command Line Tools for Xcode 27.0" lands on a host whose macOS build has not
-moved at all, so a stamp keyed on the OS build reports "nothing to do" and the
-update is silently skipped. Asking what is actually on offer covers that, along
-with the tools being absent and a macOS upgrade having removed them.
+* Keying on the macOS build misses updates entirely. Apple ships Command Line
+  Tools updates on their own cadence — "Command Line Tools for Xcode 27.0" lands
+  on a host whose macOS build has not moved — so a stamp keyed on the OS build
+  reports "nothing to do".
+* Matching the product name reinstalls on *every* run. While the
+  install-on-demand sentinel is in place, softwareupdate advertises every
+  Command Line Tools package Apple publishes — 26.5, 26.6 and 27.0 at once — not
+  just newer ones, so the test never goes false.
 
-`--no-scan` reuses the macOS update daemon's own periodic scan — roughly a
-second, against several for a round trip to Apple on every agent run. Set
+`--no-scan` reuses the macOS update daemon's own periodic scan, roughly a second
+against several for a round trip to Apple on every agent run. Set
 `command_line_tools_full_scan` for hosts that are rarely up, or where automatic
 checks are disabled, so that cache cannot be relied upon. The install script
-refreshes the catalogue afterwards, so a cached scan never re-offers a package
-that was just installed.
+drops the sentinel before refreshing the catalogue, so a cached scan never
+replays the install-on-demand listing back to the next run.
 
 Two details worth knowing if you modify this module:
 

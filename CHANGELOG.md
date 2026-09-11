@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## Release 1.0.1
+
+**Bugfixes**
+
+* The Command Line Tools were reinstalled on every agent run. Two compounding
+  causes, both in this module:
+  * The install script refreshed the `softwareupdate` catalogue *before*
+    removing the install-on-demand sentinel. While that sentinel is in place
+    softwareupdate advertises every Command Line Tools package Apple publishes
+    -- 26.5, 26.6 and 27.0 at once -- so the refresh cached the whole listing
+    and the next run believed an update was pending again. The sentinel is now
+    dropped before the catalogue is refreshed.
+  * The trigger only tested whether softwareupdate mentioned "Command Line
+    Tools" at all, which cannot tell "a newer version exists" from "some
+    version is listed", so it never went false. The decision now goes through
+    `check_command_line_tools.sh`, which compares the installed package version
+    from `pkgutil` against the newest version on offer. That comparison holds
+    even when the sentinel is left behind, so a failed cleanup no longer
+    reintroduces the loop.
+
 ## Release 1.0.0
 
 First release.

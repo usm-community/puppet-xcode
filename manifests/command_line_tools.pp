@@ -5,13 +5,11 @@ class xcode::command_line_tools {
   assert_private()
 
   $script = '/var/tmp/puppet_xcode_install_command_line_tools.sh'
-  $clang  = '/Library/Developer/CommandLineTools/usr/bin/clang'
+  $check  = '/var/tmp/puppet_xcode_check_command_line_tools.sh'
 
-  # --no-scan reuses the result of the macOS update daemon's own periodic scan,
-  # about a second against several for a round trip to Apple on every agent run.
-  $list = $xcode::command_line_tools_full_scan ? {
-    true    => '/usr/sbin/softwareupdate -l',
-    default => '/usr/sbin/softwareupdate -l --no-scan',
+  $check_command = $xcode::command_line_tools_full_scan ? {
+    true    => "${check} --full-scan",
+    default => $check,
   }
 
   file { $script:
@@ -22,22 +20,28 @@ class xcode::command_line_tools {
     source => 'puppet:///modules/xcode/install_command_line_tools.sh',
   }
 
+  file { $check:
+    ensure => file,
+    owner  => 'root',
+    group  => 'wheel',
+    mode   => '0700',
+    source => 'puppet:///modules/xcode/check_command_line_tools.sh',
+  }
+
   # `xcode-select --install` cannot be used here: it opens a GUI dialog and
   # would never complete under an unattended Puppet run.
   #
-  # Ask softwareupdate what is on offer rather than inferring it from the OS
-  # build. Apple ships Command Line Tools updates on their own cadence -- a
-  # "Command Line Tools for Xcode 27.0" lands on hosts whose macOS build has
-  # not moved at all -- so keying on the OS build silently misses them. The
-  # first test covers the tools being absent outright, which an update check
-  # alone would not report.
+  # The check compares the installed package version against the newest one on
+  # offer. Merely asking whether softwareupdate lists "Command Line Tools" is
+  # not enough: with the install-on-demand sentinel in place it advertises
+  # every version Apple publishes, older ones included, so such a test stays
+  # true forever and reinstalls on every agent run.
   exec { 'xcode_install_command_line_tools':
-    onlyif    => "! test -x '${clang}' || ${list} 2>/dev/null | grep -q 'Command Line Tools'",
+    onlyif    => $check_command,
     command   => $script,
-    provider  => shell,
     path      => ['/usr/bin', '/bin', '/usr/sbin', '/sbin'],
     logoutput => 'on_failure',
     timeout   => $xcode::command_line_tools_timeout,
-    require   => File[$script],
+    require   => [File[$script], File[$check]],
   }
 }

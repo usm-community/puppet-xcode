@@ -178,27 +178,32 @@ describe 'xcode' do
 
   context 'with manage_command_line_tools' do
     let(:params) { { manage_command_line_tools: true } }
-    let(:clang) { '/Library/Developer/CommandLineTools/usr/bin/clang' }
+    let(:check) { '/var/tmp/puppet_xcode_check_command_line_tools.sh' }
 
     it { is_expected.to compile.with_all_deps }
 
-    # Apple ships Command Line Tools updates independently of macOS releases,
-    # so the trigger has to be "softwareupdate offers one", not "the OS build
-    # changed" -- the latter silently misses them. The first clause covers the
-    # tools being absent, which an update check alone would not report.
-    it 'asks softwareupdate what is on offer instead of inferring it from the OS build' do
+    # Asking whether softwareupdate merely lists "Command Line Tools" is not
+    # enough: with the install-on-demand sentinel in place it advertises every
+    # version Apple publishes, older ones included, so such a test stays true
+    # forever and reinstalls on every run. The check compares versions instead.
+    it 'delegates the decision to a version-comparing check script' do
       is_expected.to contain_exec('xcode_install_command_line_tools')
-        .with_onlyif("! test -x '#{clang}' || /usr/sbin/softwareupdate -l --no-scan " \
-                     "2>/dev/null | grep -q 'Command Line Tools'")
-        .with_provider('shell')
+        .with_onlyif(check)
+        .with_command('/var/tmp/puppet_xcode_install_command_line_tools.sh')
         .with_timeout(1800)
+    end
+
+    it { is_expected.to contain_file(check).with_mode('0700').with_source('puppet:///modules/xcode/check_command_line_tools.sh') }
+    it { is_expected.to contain_file('/var/tmp/puppet_xcode_install_command_line_tools.sh').with_mode('0700') }
+
+    it 'ships both scripts before the exec can use them' do
+      is_expected.to contain_exec('xcode_install_command_line_tools')
+        .that_requires(['File[/var/tmp/puppet_xcode_install_command_line_tools.sh]', "File[#{check}]"])
     end
 
     it 'keeps no state file of its own, the real state being directly observable' do
       is_expected.not_to contain_file('/var/db/puppet_xcode_clt_state')
     end
-
-    it { is_expected.to contain_file('/var/tmp/puppet_xcode_install_command_line_tools.sh').with_mode('0700') }
 
     it 'installs them before touching the Xcode licence' do
       is_expected.to contain_class('xcode::command_line_tools')
@@ -208,10 +213,9 @@ describe 'xcode' do
     context 'with command_line_tools_full_scan' do
       let(:params) { super().merge(command_line_tools_full_scan: true) }
 
-      it 'drops --no-scan so softwareupdate contacts Apple on every run' do
+      it 'passes --full-scan so the check contacts Apple instead of reusing the cache' do
         is_expected.to contain_exec('xcode_install_command_line_tools')
-          .with_onlyif("! test -x '#{clang}' || /usr/sbin/softwareupdate -l " \
-                       "2>/dev/null | grep -q 'Command Line Tools'")
+          .with_onlyif("#{check} --full-scan")
       end
     end
   end
